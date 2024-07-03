@@ -37,9 +37,9 @@ async function run(): Promise<void> {
     const codeCoverageNew = <CoverageReport>(
       JSON.parse(fs.readFileSync('coverage-summary.json').toString())
     )
-    execSync('/usr/bin/git --quiet fetch')
-    execSync('/usr/bin/git --quiet stash')
-    execSync(`/usr/bin/git checkout --force ${branchNameBase}`)
+    execSync('/usr/bin/git fetch --quiet')
+    execSync('/usr/bin/git stash --quiet')
+    execSync(`/usr/bin/git checkout --quiet --force ${branchNameBase}`)
     if (afterSwitchCacheKey) {
       try {
         const cacheKey = afterSwitchCacheKey

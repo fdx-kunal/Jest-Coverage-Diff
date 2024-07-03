@@ -72777,9 +72777,9 @@ function run() {
             let commentId = null;
             child_process_1.execSync(commandToRun);
             const codeCoverageNew = (JSON.parse(fs_1.default.readFileSync('coverage-summary.json').toString()));
-            child_process_1.execSync('/usr/bin/git --quiet fetch');
-            child_process_1.execSync('/usr/bin/git --quiet stash');
-            child_process_1.execSync(`/usr/bin/git checkout --force ${branchNameBase}`);
+            child_process_1.execSync('/usr/bin/git fetch --quiet');
+            child_process_1.execSync('/usr/bin/git stash --quiet');
+            child_process_1.execSync(`/usr/bin/git checkout --quiet --force ${branchNameBase}`);
             if (afterSwitchCacheKey) {
                 try {
                     const cacheKey = afterSwitchCacheKey;
