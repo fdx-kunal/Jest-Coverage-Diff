@@ -1,3 +1,4 @@
+/* eslint-disable github/array-foreach */
 import * as core from '@actions/core'
 import {CoverageReport} from './Model/CoverageReport'
 import {DiffCoverageReport} from './Model/DiffCoverageReport'

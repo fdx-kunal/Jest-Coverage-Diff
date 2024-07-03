@@ -26,6 +26,7 @@
   "author": "Anuraag Puri",
   "license": "MIT",
   "dependencies": {
+    "@actions/cache": "^3.2.4",
     "@actions/core": "^1.2.4",
     "@actions/github": "^4.0.0"
   },
@@ -33,7 +34,7 @@
     "@types/jest": "^24.9.1",
     "@types/node": "^12.12.50",
     "@typescript-eslint/parser": "^2.34.0",
-    "@zeit/ncc": "^0.20.5",
+    "@vercel/ncc": "^0.38.1",
     "eslint": "^5.16.0",
     "eslint-plugin-github": "^2.0.0",
     "eslint-plugin-jest": "^22.21.0",

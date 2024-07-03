@@ -1,5 +1,6 @@
 import * as core from '@actions/core'
 import * as github from '@actions/github'
+import * as cache from '@actions/cache'
 import {execSync} from 'child_process'
 import fs from 'fs'
 import {CoverageReport} from './Model/CoverageReport'
@@ -17,6 +18,7 @@ async function run(): Promise<void> {
     const fullCoverage = JSON.parse(core.getInput('fullCoverageDiff'))
     const commandToRun = core.getInput('runCommand')
     const commandAfterSwitch = core.getInput('afterSwitchCommand')
+    const afterSwitchCacheKey = core.getInput('afterSwitchCacheKey')
     const delta = Number(core.getInput('delta'))
     const rawTotalDelta = core.getInput('total_delta')
     const githubClient = github.getOctokit(githubToken)
@@ -35,10 +37,31 @@ async function run(): Promise<void> {
     const codeCoverageNew = <CoverageReport>(
       JSON.parse(fs.readFileSync('coverage-summary.json').toString())
     )
-    execSync('/usr/bin/git fetch')
-    execSync('/usr/bin/git stash')
-    execSync(`/usr/bin/git checkout --progress --force ${branchNameBase}`)
-    if (commandAfterSwitch) {
+    execSync('/usr/bin/git --quiet fetch')
+    execSync('/usr/bin/git --quiet stash')
+    execSync(`/usr/bin/git checkout --force ${branchNameBase}`)
+    if (afterSwitchCacheKey) {
+      try {
+        const cacheKey = afterSwitchCacheKey
+        const cachePaths = ['~/.npm', '**/*/node_modules', 'node_modules'] // Specify the paths to cache
+
+        // Attempt to restore the cache
+        const restoredCacheKey = await cache.restoreCache(cachePaths, cacheKey)
+        if (restoredCacheKey) {
+          core.info(`Cache restored from key: ${restoredCacheKey}`)
+        } else {
+          core.info('Cache not found, a new cache will be created.')
+        }
+
+        // Your custom action logic here
+
+        // Save the cache
+        // const cacheId = await cache.saveCache(cachePaths, cacheKey)
+        // core.info(`Cache saved with key: ${cacheKey} and id: ${cacheId}`)
+      } catch (error) {
+        core.setFailed(error.message)
+      }
+
       execSync(commandAfterSwitch)
     }
     execSync(commandToRun)
@@ -121,7 +144,7 @@ async function createOrUpdateComment(
   repoName: string,
   messageToPost: string,
   prNumber: number
-) {
+): Promise<void> {
   if (commentId) {
     await githubClient.issues.updateComment({
       owner: repoOwner,
