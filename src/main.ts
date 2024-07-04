@@ -31,19 +31,42 @@ async function run(): Promise<void> {
             totalDelta = Number(rawTotalDelta);
         }
         let commentId = null;
+
+        console.time("Initial command to run");
         execSync(commandToRun);
+        console.timeEnd("Initial command to run");
+
         const codeCoverageNew = <CoverageReport>JSON.parse(fs.readFileSync("coverage-summary.json").toString());
+
         execSync("/usr/bin/git fetch --quiet");
+
+        console.log("Fetch successful");
+
         execSync("/usr/bin/git stash --quiet");
+
+        console.log("stash successful");
+
         execSync(`/usr/bin/git checkout --quiet --force ${branchNameBase}`);
+
+        console.log(`checkout to ${branchNameBase} successfui`);
+
         if (commandAfterSwitch) {
+            console.log(`running commandAfterSwitch`);
+
+            console.time("Command after switch");
             execSync(commandAfterSwitch);
+            console.timeEnd("Command after switch");
         }
+
+        console.time("Subsequent command to run");
         execSync(commandToRun);
+        console.timeEnd("Subsequent command to run");
+
         const codeCoverageOld = <CoverageReport>JSON.parse(fs.readFileSync("coverage-summary.json").toString());
         const currentDirectory = execSync("pwd")
             .toString()
             .trim();
+
         const diffChecker: DiffChecker = new DiffChecker(codeCoverageNew, codeCoverageOld);
         let messageToPost = `## Test coverage results :test_tube: \n
     Code coverage diff between base branch:${branchNameBase} and head branch: ${branchNameHead} \n\n`;
