@@ -36,7 +36,7 @@ async function run(): Promise<void> {
         }
         let commentId = null;
 
-        measureExecTime("commandToRun", commandToRun);
+        execSync(commandToRun);
 
         const codeCoverageNew = <CoverageReport>JSON.parse(fs.readFileSync("coverage-summary.json").toString());
 
@@ -44,11 +44,8 @@ async function run(): Promise<void> {
         execSync("/usr/bin/git stash --quiet");
         execSync(`/usr/bin/git checkout --quiet --force ${branchNameBase}`);
 
-        if (commandAfterSwitch) {
-            measureExecTime("commandAfterSwitch", commandAfterSwitch);
-        }
-
-        measureExecTime("commandToRun2", commandToRun);
+        execSync(commandAfterSwitch);
+        execSync(commandToRun);
 
         const codeCoverageOld = <CoverageReport>JSON.parse(fs.readFileSync("coverage-summary.json").toString());
         const currentDirectory = execSync("pwd").toString().trim();
@@ -91,12 +88,6 @@ async function run(): Promise<void> {
     }
 }
 
-function measureExecTime(label: string, commandToRun: string): void {
-    console.time(label);
-    execSync(commandToRun);
-    console.timeEnd(label);
-}
-
 async function createOrUpdateComment(
     commentId: number | null,
     githubClient: GitHubClient,
@@ -109,6 +100,7 @@ async function createOrUpdateComment(
         await githubClient.rest.issues.updateComment({
             owner: repoOwner,
             repo: repoName,
+            // eslint-disable-next-line camelcase
             comment_id: commentId,
             body: messageToPost,
         });
@@ -117,6 +109,7 @@ async function createOrUpdateComment(
             repo: repoName,
             owner: repoOwner,
             body: messageToPost,
+            // eslint-disable-next-line camelcase
             issue_number: prNumber,
         });
     }
