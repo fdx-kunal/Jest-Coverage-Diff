@@ -29413,15 +29413,13 @@ function run() {
                 totalDelta = Number(rawTotalDelta);
             }
             let commentId = null;
-            measureExecTime("commandToRun", commandToRun);
+            (0, child_process_1.execSync)(commandToRun);
             const codeCoverageNew = JSON.parse(fs_1.default.readFileSync("coverage-summary.json").toString());
             (0, child_process_1.execSync)("/usr/bin/git fetch --quiet --depth=1");
             (0, child_process_1.execSync)("/usr/bin/git stash --quiet");
             (0, child_process_1.execSync)(`/usr/bin/git checkout --quiet --force ${branchNameBase}`);
-            if (commandAfterSwitch) {
-                measureExecTime("commandAfterSwitch", commandAfterSwitch);
-            }
-            measureExecTime("commandToRun2", commandToRun);
+            (0, child_process_1.execSync)(commandAfterSwitch);
+            (0, child_process_1.execSync)(commandToRun);
             const codeCoverageOld = JSON.parse(fs_1.default.readFileSync("coverage-summary.json").toString());
             const currentDirectory = (0, child_process_1.execSync)("pwd").toString().trim();
             const diffChecker = new DiffChecker_1.DiffChecker(codeCoverageNew, codeCoverageOld);
@@ -29465,17 +29463,13 @@ function run() {
         }
     });
 }
-function measureExecTime(label, commandToRun) {
-    console.time(label);
-    (0, child_process_1.execSync)(commandToRun);
-    console.timeEnd(label);
-}
 function createOrUpdateComment(commentId, githubClient, repoOwner, repoName, messageToPost, prNumber) {
     return __awaiter(this, void 0, void 0, function* () {
         if (commentId) {
             yield githubClient.rest.issues.updateComment({
                 owner: repoOwner,
                 repo: repoName,
+                // eslint-disable-next-line camelcase
                 comment_id: commentId,
                 body: messageToPost,
             });
@@ -29485,6 +29479,7 @@ function createOrUpdateComment(commentId, githubClient, repoOwner, repoName, mes
                 repo: repoName,
                 owner: repoOwner,
                 body: messageToPost,
+                // eslint-disable-next-line camelcase
                 issue_number: prNumber,
             });
         }
