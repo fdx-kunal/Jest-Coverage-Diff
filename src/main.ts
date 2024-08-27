@@ -4,9 +4,13 @@ import { execSync } from "child_process";
 import fs from "fs";
 import { CoverageReport } from "./Model/CoverageReport";
 import { DiffChecker } from "./DiffChecker";
-import { Octokit } from "@octokit/core";
-import { PaginateInterface } from "@octokit/plugin-paginate-rest";
-import { RestEndpointMethods } from "@octokit/plugin-rest-endpoint-methods/dist-types/generated/method-types";
+// import { Octokit } from "@octokit/core";
+// import { PaginateInterface } from "@octokit/plugin-paginate-rest";
+// import { RestEndpointMethods } from "@octokit/plugin-rest-endpoint-methods/dist-types/generated/method-types";
+// import { Endpoints } from "@octokit/types";
+
+type GitHubClient = ReturnType<typeof github.getOctokit>;
+// type Comment = Endpoints["GET /repos/{owner}/{repo}/issues/{issue_number}/comments"]["response"]["data"][number];
 
 async function run(): Promise<void> {
     try {
@@ -32,40 +36,22 @@ async function run(): Promise<void> {
         }
         let commentId = null;
 
-        console.time("Initial command to run");
-        execSync(commandToRun);
-        console.timeEnd("Initial command to run");
+        measureExecTime("commandToRun", commandToRun);
 
         const codeCoverageNew = <CoverageReport>JSON.parse(fs.readFileSync("coverage-summary.json").toString());
 
-        execSync("/usr/bin/git fetch --quiet");
-
-        console.log("Fetch successful");
-
+        execSync("/usr/bin/git fetch --quiet --depth=1");
         execSync("/usr/bin/git stash --quiet");
-
-        console.log("stash successful");
-
         execSync(`/usr/bin/git checkout --quiet --force ${branchNameBase}`);
 
-        console.log(`checkout to ${branchNameBase} successfui`);
-
         if (commandAfterSwitch) {
-            console.log(`running commandAfterSwitch`);
-
-            console.time("Command after switch");
-            execSync(commandAfterSwitch);
-            console.timeEnd("Command after switch");
+            measureExecTime("commandAfterSwitch", commandAfterSwitch);
         }
 
-        console.time("Subsequent command to run");
-        execSync(commandToRun);
-        console.timeEnd("Subsequent command to run");
+        measureExecTime("commandToRun2", commandToRun);
 
         const codeCoverageOld = <CoverageReport>JSON.parse(fs.readFileSync("coverage-summary.json").toString());
-        const currentDirectory = execSync("pwd")
-            .toString()
-            .trim();
+        const currentDirectory = execSync("pwd").toString().trim();
 
         const diffChecker: DiffChecker = new DiffChecker(codeCoverageNew, codeCoverageOld);
         let messageToPost = `## Test coverage results :test_tube: \n
@@ -94,29 +80,40 @@ async function run(): Promise<void> {
             await createOrUpdateComment(commentId, githubClient, repoOwner, repoName, messageToPost, prNumber);
             throw Error(messageToPost);
         }
-    } catch (error) {
-        core.setFailed(error);
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            core.setFailed(error.message);
+        } else if (typeof error === "string") {
+            core.setFailed(error);
+        } else {
+            core.setFailed("An unknown error occurred.");
+        }
     }
+}
+
+function measureExecTime(label: string, commandToRun: string): void {
+    console.time(label);
+    execSync(commandToRun);
+    console.timeEnd(label);
 }
 
 async function createOrUpdateComment(
     commentId: number | null,
-    githubClient: { [x: string]: any } & { [x: string]: any } & Octokit &
-        RestEndpointMethods & { paginate: PaginateInterface },
+    githubClient: GitHubClient,
     repoOwner: string,
     repoName: string,
     messageToPost: string,
     prNumber: number,
 ): Promise<void> {
     if (commentId) {
-        await githubClient.issues.updateComment({
+        await githubClient.rest.issues.updateComment({
             owner: repoOwner,
             repo: repoName,
             comment_id: commentId,
             body: messageToPost,
         });
     } else {
-        await githubClient.issues.createComment({
+        await githubClient.rest.issues.createComment({
             repo: repoName,
             owner: repoOwner,
             body: messageToPost,
@@ -126,21 +123,20 @@ async function createOrUpdateComment(
 }
 
 async function findComment(
-    githubClient: { [x: string]: any } & { [x: string]: any } & Octokit &
-        RestEndpointMethods & { paginate: PaginateInterface },
+    githubClient: GitHubClient,
     repoName: string,
     repoOwner: string,
     prNumber: number,
     identifier: string,
 ): Promise<number> {
-    const comments = await githubClient.issues.listComments({
+    const comments = await githubClient.rest.issues.listComments({
         owner: repoOwner,
         repo: repoName,
         issue_number: prNumber,
     });
 
     for (const comment of comments.data) {
-        if (comment.body.startsWith(identifier)) {
+        if (comment.body?.startsWith(identifier)) {
             return comment.id;
         }
     }

@@ -1,4 +1,4 @@
 export interface DiffCoverageData {
-  oldPct?: number
-  newPct?: number
+    oldPct?: number;
+    newPct?: number;
 }

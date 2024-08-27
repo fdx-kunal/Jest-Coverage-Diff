@@ -1,5 +1,5 @@
-import {FileCoverageData} from './FileCoverageData'
+import { FileCoverageData } from "./FileCoverageData";
 
 export interface CoverageReport {
-  [filePath: string]: FileCoverageData
+    [filePath: string]: FileCoverageData;
 }

@@ -1,31 +1,31 @@
-name: 'Jest Coverage Diff'
-description: 'A github action to comment jest coverage diff on a PR'
-author: 'Anuraag Puri'
+name: "Jest Coverage Diff"
+description: "A github action to comment jest coverage diff on a PR"
+author: "Anuraag Puri"
 inputs:
   accessToken:
-    description: 'access token required to comment on a pr'
+    description: "access token required to comment on a pr"
     default: ${{ github.token }}
   fullCoverageDiff:
-    description: 'get the full coverage with diff or only the diff'
+    description: "get the full coverage with diff or only the diff"
     default: false
   runCommand:
-    description: 'custom command to get json-summary'
+    description: "custom command to get json-summary"
     default: 'npx jest --coverage --coverageReporters="json-summary" --coverageDirectory="./"'
   afterSwitchCommand:
-    description: 'command to run after switching to default branch'
+    description: "command to run after switching to default branch"
     default: null
   delta:
-    description: 'Difference between the old and final test coverage'
+    description: "Difference between the old and final test coverage"
     default: 100
   total_delta:
-    description: 'Difference between the old and final test coverage at the total level'
+    description: "Difference between the old and final test coverage at the total level"
     default: null
   useSameComment:
-    description: 'While commenting on the PR update the exisiting comment'
+    description: "While commenting on the PR update the exisiting comment"
     default: false
 branding:
   color: red
   icon: git-pull-request
 runs:
-  using: 'node12'
-  main: 'dist/index.js'
+  using: "node20"
+  main: "dist/index.js"
