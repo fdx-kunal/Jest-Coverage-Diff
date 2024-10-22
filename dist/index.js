@@ -29386,11 +29386,13 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(2186));
 const github = __importStar(__nccwpck_require__(5438));
 const child_process_1 = __nccwpck_require__(2081);
+const util_1 = __nccwpck_require__(3837);
 const fs_1 = __importDefault(__nccwpck_require__(7147));
 const DiffChecker_1 = __nccwpck_require__(6458);
+const execAsync = (0, util_1.promisify)(child_process_1.exec);
 function copyNodeModulesToWorktree(tempDir) {
     if (fs_1.default.existsSync("node_modules")) {
-        (0, child_process_1.execSync)(`cp -R node_modules ${tempDir}/`, { stdio: "inherit" });
+        fs_1.default.cpSync("node_modules", `${tempDir}/node_modules`, { recursive: true });
     }
 }
 function run() {
@@ -29418,31 +29420,27 @@ function run() {
                 totalDelta = Number(rawTotalDelta);
             }
             let commentId = null;
-            (0, child_process_1.execSync)(commandToRun, { stdio: "inherit" });
-            const codeCoverageNew = JSON.parse(fs_1.default.readFileSync("coverage-summary.json").toString());
             const tempDir = "base_branch_worktree";
-            (0, child_process_1.execSync)(`git worktree add ${tempDir} ${branchNameBase}`, {
-                stdio: "inherit",
-            });
+            yield execAsync(`git worktree add ${tempDir} ${branchNameBase}`);
             copyNodeModulesToWorktree(tempDir);
             try {
-                // const nodeModulesExists = fs.existsSync(`${tempDir}/node_modules`);
-                // const installCommand = nodeModulesExists ? "" : "npm ci --prefer-offline --no-audit &&";
-                (0, child_process_1.execSync)(`cd ${tempDir} && ${commandAfterSwitch} && ${commandToRun}`, {
-                    stdio: "inherit",
-                });
+                const headBranchPromise = execAsync(commandToRun);
+                const baseBranchCommands = `cd ${tempDir} && ${commandAfterSwitch} && ${commandToRun}`;
+                const baseBranchPromise = execAsync(baseBranchCommands);
+                yield Promise.all([headBranchPromise, baseBranchPromise]);
+                const codeCoverageNew = JSON.parse(fs_1.default.readFileSync("coverage-summary.json").toString());
                 const codeCoverageOld = JSON.parse(fs_1.default.readFileSync(`${tempDir}/coverage-summary.json`).toString());
                 const currentDirectory = process.cwd();
                 const diffChecker = new DiffChecker_1.DiffChecker(codeCoverageNew, codeCoverageOld);
-                let messageToPost = `## Test coverage results :test_tube: \n
-    Code coverage diff between base branch:${branchNameBase} and head branch: ${branchNameHead} \n\n`;
+                let messageToPost = `## Test coverage results :test_tube:\n
+    Code coverage diff between base branch: ${branchNameBase} and head branch: ${branchNameHead}\n\n`;
                 const coverageDetails = diffChecker.getCoverageDetails(!fullCoverage, `${currentDirectory}/`);
                 if (coverageDetails.length === 0) {
                     messageToPost = "No changes to code coverage between the base branch and the head branch";
                 }
                 else {
                     messageToPost +=
-                        "Status | File | % Stmts | % Branch | % Funcs | % Lines \n -----|-----|---------|----------|---------|------ \n";
+                        "Status | File | % Stmts | % Branch | % Funcs | % Lines\n-----|-----|---------|----------|---------|------\n";
                     messageToPost += coverageDetails.join("\n");
                 }
                 messageToPost = `${commentIdentifier}\nCommit SHA:${commitSha}\n${messageToPost}`;
@@ -29450,7 +29448,6 @@ function run() {
                     commentId = yield findComment(githubClient, repoName, repoOwner, prNumber, commentIdentifier);
                 }
                 yield createOrUpdateComment(commentId, githubClient, repoOwner, repoName, messageToPost, prNumber);
-                // check if the test coverage is falling below delta/tolerance.
                 if (diffChecker.checkIfTestCoverageFallsBelowDelta(delta, totalDelta)) {
                     if (useSameComment) {
                         commentId = yield findComment(githubClient, repoName, repoOwner, prNumber, deltaCommentIdentifier);
@@ -29462,8 +29459,7 @@ function run() {
                 }
             }
             finally {
-                (0, child_process_1.execSync)(`git worktree remove --force ${tempDir}`, { stdio: "inherit" });
-                (0, child_process_1.execSync)(`rm -rf ${tempDir}`, { stdio: "inherit" });
+                yield execAsync(`git worktree remove --force ${tempDir}`);
             }
         }
         catch (error) {

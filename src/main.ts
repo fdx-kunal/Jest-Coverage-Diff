@@ -1,16 +1,19 @@
 /* eslint-disable i18n-text/no-en */
 import * as core from "@actions/core";
 import * as github from "@actions/github";
-import { execSync } from "child_process";
+import { exec } from "child_process";
+import { promisify } from "util";
 import fs from "fs";
 import { CoverageReport } from "./Model/CoverageReport";
 import { DiffChecker } from "./DiffChecker";
+
+const execAsync = promisify(exec);
 
 type GitHubClient = ReturnType<typeof github.getOctokit>;
 
 function copyNodeModulesToWorktree(tempDir: string): void {
     if (fs.existsSync("node_modules")) {
-        execSync(`cp -R node_modules ${tempDir}/`, { stdio: "inherit" });
+        fs.cpSync("node_modules", `${tempDir}/node_modules`, { recursive: true });
     }
 }
 
@@ -38,24 +41,20 @@ async function run(): Promise<void> {
         }
         let commentId = null;
 
-        execSync(commandToRun, { stdio: "inherit" });
-
-        const codeCoverageNew = JSON.parse(fs.readFileSync("coverage-summary.json").toString()) as CoverageReport;
-
         const tempDir = "base_branch_worktree";
-        execSync(`git worktree add ${tempDir} ${branchNameBase}`, {
-            stdio: "inherit",
-        });
+        await execAsync(`git worktree add ${tempDir} ${branchNameBase}`);
 
         copyNodeModulesToWorktree(tempDir);
 
         try {
-            // const nodeModulesExists = fs.existsSync(`${tempDir}/node_modules`);
-            // const installCommand = nodeModulesExists ? "" : "npm ci --prefer-offline --no-audit &&";
+            const headBranchPromise = execAsync(commandToRun);
 
-            execSync(`cd ${tempDir} && ${commandAfterSwitch} && ${commandToRun}`, {
-                stdio: "inherit",
-            });
+            const baseBranchCommands = `cd ${tempDir} && ${commandAfterSwitch} && ${commandToRun}`;
+            const baseBranchPromise = execAsync(baseBranchCommands);
+
+            await Promise.all([headBranchPromise, baseBranchPromise]);
+
+            const codeCoverageNew = JSON.parse(fs.readFileSync("coverage-summary.json").toString()) as CoverageReport;
 
             const codeCoverageOld = JSON.parse(
                 fs.readFileSync(`${tempDir}/coverage-summary.json`).toString(),
@@ -64,14 +63,14 @@ async function run(): Promise<void> {
             const currentDirectory = process.cwd();
 
             const diffChecker: DiffChecker = new DiffChecker(codeCoverageNew, codeCoverageOld);
-            let messageToPost = `## Test coverage results :test_tube: \n
-    Code coverage diff between base branch:${branchNameBase} and head branch: ${branchNameHead} \n\n`;
+            let messageToPost = `## Test coverage results :test_tube:\n
+    Code coverage diff between base branch: ${branchNameBase} and head branch: ${branchNameHead}\n\n`;
             const coverageDetails = diffChecker.getCoverageDetails(!fullCoverage, `${currentDirectory}/`);
             if (coverageDetails.length === 0) {
                 messageToPost = "No changes to code coverage between the base branch and the head branch";
             } else {
                 messageToPost +=
-                    "Status | File | % Stmts | % Branch | % Funcs | % Lines \n -----|-----|---------|----------|---------|------ \n";
+                    "Status | File | % Stmts | % Branch | % Funcs | % Lines\n-----|-----|---------|----------|---------|------\n";
                 messageToPost += coverageDetails.join("\n");
             }
             messageToPost = `${commentIdentifier}\nCommit SHA:${commitSha}\n${messageToPost}`;
@@ -80,7 +79,6 @@ async function run(): Promise<void> {
             }
             await createOrUpdateComment(commentId, githubClient, repoOwner, repoName, messageToPost, prNumber);
 
-            // check if the test coverage is falling below delta/tolerance.
             if (diffChecker.checkIfTestCoverageFallsBelowDelta(delta, totalDelta)) {
                 if (useSameComment) {
                     commentId = await findComment(githubClient, repoName, repoOwner, prNumber, deltaCommentIdentifier);
@@ -91,8 +89,7 @@ async function run(): Promise<void> {
                 throw new Error(messageToPost);
             }
         } finally {
-            execSync(`git worktree remove --force ${tempDir}`, { stdio: "inherit" });
-            execSync(`rm -rf ${tempDir}`, { stdio: "inherit" });
+            await execAsync(`git worktree remove --force ${tempDir}`);
         }
     } catch (error: unknown) {
         if (error instanceof Error) {
