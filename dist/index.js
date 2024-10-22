@@ -29382,12 +29382,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+/* eslint-disable i18n-text/no-en */
 const core = __importStar(__nccwpck_require__(2186));
 const github = __importStar(__nccwpck_require__(5438));
 const child_process_1 = __nccwpck_require__(2081);
 const fs_1 = __importDefault(__nccwpck_require__(7147));
 const DiffChecker_1 = __nccwpck_require__(6458);
-// type Comment = Endpoints["GET /repos/{owner}/{repo}/issues/{issue_number}/comments"]["response"]["data"][number];
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b;
@@ -29409,45 +29409,49 @@ function run() {
             const commentIdentifier = `<!-- codeCoverageDiffComment -->`;
             const deltaCommentIdentifier = `<!-- codeCoverageDeltaComment -->`;
             let totalDelta = null;
-            if (rawTotalDelta !== null) {
+            if (rawTotalDelta !== null && rawTotalDelta !== "") {
                 totalDelta = Number(rawTotalDelta);
             }
             let commentId = null;
-            (0, child_process_1.execSync)(commandToRun);
+            (0, child_process_1.execSync)(commandToRun, { stdio: "inherit" });
             const codeCoverageNew = JSON.parse(fs_1.default.readFileSync("coverage-summary.json").toString());
-            (0, child_process_1.execSync)("/usr/bin/git fetch --quiet --depth=1");
-            (0, child_process_1.execSync)("/usr/bin/git stash --quiet");
-            (0, child_process_1.execSync)(`/usr/bin/git checkout --quiet --force ${branchNameBase}`);
-            (0, child_process_1.execSync)(commandAfterSwitch);
-            (0, child_process_1.execSync)(commandToRun);
-            const codeCoverageOld = JSON.parse(fs_1.default.readFileSync("coverage-summary.json").toString());
-            const currentDirectory = (0, child_process_1.execSync)("pwd").toString().trim();
-            const diffChecker = new DiffChecker_1.DiffChecker(codeCoverageNew, codeCoverageOld);
-            let messageToPost = `## Test coverage results :test_tube: \n
+            const tempDir = "base_branch_worktree";
+            (0, child_process_1.execSync)(`git worktree add ${tempDir} ${branchNameBase}`, { stdio: "inherit" });
+            try {
+                (0, child_process_1.execSync)(`cd ${tempDir} && ${commandAfterSwitch} && ${commandToRun}`, { stdio: "inherit" });
+                const codeCoverageOld = JSON.parse(fs_1.default.readFileSync(`${tempDir}/coverage-summary.json`).toString());
+                const currentDirectory = process.cwd();
+                const diffChecker = new DiffChecker_1.DiffChecker(codeCoverageNew, codeCoverageOld);
+                let messageToPost = `## Test coverage results :test_tube: \n
     Code coverage diff between base branch:${branchNameBase} and head branch: ${branchNameHead} \n\n`;
-            const coverageDetails = diffChecker.getCoverageDetails(!fullCoverage, `${currentDirectory}/`);
-            if (coverageDetails.length === 0) {
-                messageToPost = "No changes to code coverage between the base branch and the head branch";
-            }
-            else {
-                messageToPost +=
-                    "Status | File | % Stmts | % Branch | % Funcs | % Lines \n -----|-----|---------|----------|---------|------ \n";
-                messageToPost += coverageDetails.join("\n");
-            }
-            messageToPost = `${commentIdentifier}\nCommit SHA:${commitSha}\n${messageToPost}`;
-            if (useSameComment) {
-                commentId = yield findComment(githubClient, repoName, repoOwner, prNumber, commentIdentifier);
-            }
-            yield createOrUpdateComment(commentId, githubClient, repoOwner, repoName, messageToPost, prNumber);
-            // check if the test coverage is falling below delta/tolerance.
-            if (diffChecker.checkIfTestCoverageFallsBelowDelta(delta, totalDelta)) {
-                if (useSameComment) {
-                    commentId = yield findComment(githubClient, repoName, repoOwner, prNumber, deltaCommentIdentifier);
+                const coverageDetails = diffChecker.getCoverageDetails(!fullCoverage, `${currentDirectory}/`);
+                if (coverageDetails.length === 0) {
+                    messageToPost = "No changes to code coverage between the base branch and the head branch";
                 }
-                messageToPost = `Current PR reduces the test coverage percentage by ${delta} for some tests`;
-                messageToPost = `${deltaCommentIdentifier}\nCommit SHA:${commitSha}\n${messageToPost}`;
+                else {
+                    messageToPost +=
+                        "Status | File | % Stmts | % Branch | % Funcs | % Lines \n -----|-----|---------|----------|---------|------ \n";
+                    messageToPost += coverageDetails.join("\n");
+                }
+                messageToPost = `${commentIdentifier}\nCommit SHA:${commitSha}\n${messageToPost}`;
+                if (useSameComment) {
+                    commentId = yield findComment(githubClient, repoName, repoOwner, prNumber, commentIdentifier);
+                }
                 yield createOrUpdateComment(commentId, githubClient, repoOwner, repoName, messageToPost, prNumber);
-                throw Error(messageToPost);
+                // check if the test coverage is falling below delta/tolerance.
+                if (diffChecker.checkIfTestCoverageFallsBelowDelta(delta, totalDelta)) {
+                    if (useSameComment) {
+                        commentId = yield findComment(githubClient, repoName, repoOwner, prNumber, deltaCommentIdentifier);
+                    }
+                    messageToPost = `Current PR reduces the test coverage percentage by ${delta} for some tests`;
+                    messageToPost = `${deltaCommentIdentifier}\nCommit SHA:${commitSha}\n${messageToPost}`;
+                    yield createOrUpdateComment(commentId, githubClient, repoOwner, repoName, messageToPost, prNumber);
+                    throw new Error(messageToPost);
+                }
+            }
+            finally {
+                (0, child_process_1.execSync)(`git worktree remove ${tempDir}`, { stdio: "inherit" });
+                (0, child_process_1.execSync)(`rm -rf ${tempDir}`, { stdio: "inherit" });
             }
         }
         catch (error) {

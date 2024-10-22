@@ -1,16 +1,12 @@
+/* eslint-disable i18n-text/no-en */
 import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { execSync } from "child_process";
 import fs from "fs";
 import { CoverageReport } from "./Model/CoverageReport";
 import { DiffChecker } from "./DiffChecker";
-// import { Octokit } from "@octokit/core";
-// import { PaginateInterface } from "@octokit/plugin-paginate-rest";
-// import { RestEndpointMethods } from "@octokit/plugin-rest-endpoint-methods/dist-types/generated/method-types";
-// import { Endpoints } from "@octokit/types";
 
 type GitHubClient = ReturnType<typeof github.getOctokit>;
-// type Comment = Endpoints["GET /repos/{owner}/{repo}/issues/{issue_number}/comments"]["response"]["data"][number];
 
 async function run(): Promise<void> {
     try {
@@ -31,51 +27,57 @@ async function run(): Promise<void> {
         const commentIdentifier = `<!-- codeCoverageDiffComment -->`;
         const deltaCommentIdentifier = `<!-- codeCoverageDeltaComment -->`;
         let totalDelta = null;
-        if (rawTotalDelta !== null) {
+        if (rawTotalDelta !== null && rawTotalDelta !== "") {
             totalDelta = Number(rawTotalDelta);
         }
         let commentId = null;
 
-        execSync(commandToRun);
+        execSync(commandToRun, { stdio: "inherit" });
 
-        const codeCoverageNew = <CoverageReport>JSON.parse(fs.readFileSync("coverage-summary.json").toString());
+        const codeCoverageNew = JSON.parse(fs.readFileSync("coverage-summary.json").toString()) as CoverageReport;
 
-        execSync("/usr/bin/git fetch --quiet --depth=1");
-        execSync("/usr/bin/git stash --quiet");
-        execSync(`/usr/bin/git checkout --quiet --force ${branchNameBase}`);
+        const tempDir = "base_branch_worktree";
+        execSync(`git worktree add ${tempDir} ${branchNameBase}`, { stdio: "inherit" });
 
-        execSync(commandAfterSwitch);
-        execSync(commandToRun);
+        try {
+            execSync(`cd ${tempDir} && ${commandAfterSwitch} && ${commandToRun}`, { stdio: "inherit" });
 
-        const codeCoverageOld = <CoverageReport>JSON.parse(fs.readFileSync("coverage-summary.json").toString());
-        const currentDirectory = execSync("pwd").toString().trim();
+            const codeCoverageOld = JSON.parse(
+                fs.readFileSync(`${tempDir}/coverage-summary.json`).toString(),
+            ) as CoverageReport;
 
-        const diffChecker: DiffChecker = new DiffChecker(codeCoverageNew, codeCoverageOld);
-        let messageToPost = `## Test coverage results :test_tube: \n
+            const currentDirectory = process.cwd();
+
+            const diffChecker: DiffChecker = new DiffChecker(codeCoverageNew, codeCoverageOld);
+            let messageToPost = `## Test coverage results :test_tube: \n
     Code coverage diff between base branch:${branchNameBase} and head branch: ${branchNameHead} \n\n`;
-        const coverageDetails = diffChecker.getCoverageDetails(!fullCoverage, `${currentDirectory}/`);
-        if (coverageDetails.length === 0) {
-            messageToPost = "No changes to code coverage between the base branch and the head branch";
-        } else {
-            messageToPost +=
-                "Status | File | % Stmts | % Branch | % Funcs | % Lines \n -----|-----|---------|----------|---------|------ \n";
-            messageToPost += coverageDetails.join("\n");
-        }
-        messageToPost = `${commentIdentifier}\nCommit SHA:${commitSha}\n${messageToPost}`;
-        if (useSameComment) {
-            commentId = await findComment(githubClient, repoName, repoOwner, prNumber, commentIdentifier);
-        }
-        await createOrUpdateComment(commentId, githubClient, repoOwner, repoName, messageToPost, prNumber);
-
-        // check if the test coverage is falling below delta/tolerance.
-        if (diffChecker.checkIfTestCoverageFallsBelowDelta(delta, totalDelta)) {
-            if (useSameComment) {
-                commentId = await findComment(githubClient, repoName, repoOwner, prNumber, deltaCommentIdentifier);
+            const coverageDetails = diffChecker.getCoverageDetails(!fullCoverage, `${currentDirectory}/`);
+            if (coverageDetails.length === 0) {
+                messageToPost = "No changes to code coverage between the base branch and the head branch";
+            } else {
+                messageToPost +=
+                    "Status | File | % Stmts | % Branch | % Funcs | % Lines \n -----|-----|---------|----------|---------|------ \n";
+                messageToPost += coverageDetails.join("\n");
             }
-            messageToPost = `Current PR reduces the test coverage percentage by ${delta} for some tests`;
-            messageToPost = `${deltaCommentIdentifier}\nCommit SHA:${commitSha}\n${messageToPost}`;
+            messageToPost = `${commentIdentifier}\nCommit SHA:${commitSha}\n${messageToPost}`;
+            if (useSameComment) {
+                commentId = await findComment(githubClient, repoName, repoOwner, prNumber, commentIdentifier);
+            }
             await createOrUpdateComment(commentId, githubClient, repoOwner, repoName, messageToPost, prNumber);
-            throw Error(messageToPost);
+
+            // check if the test coverage is falling below delta/tolerance.
+            if (diffChecker.checkIfTestCoverageFallsBelowDelta(delta, totalDelta)) {
+                if (useSameComment) {
+                    commentId = await findComment(githubClient, repoName, repoOwner, prNumber, deltaCommentIdentifier);
+                }
+                messageToPost = `Current PR reduces the test coverage percentage by ${delta} for some tests`;
+                messageToPost = `${deltaCommentIdentifier}\nCommit SHA:${commitSha}\n${messageToPost}`;
+                await createOrUpdateComment(commentId, githubClient, repoOwner, repoName, messageToPost, prNumber);
+                throw new Error(messageToPost);
+            }
+        } finally {
+            execSync(`git worktree remove ${tempDir}`, { stdio: "inherit" });
+            execSync(`rm -rf ${tempDir}`, { stdio: "inherit" });
         }
     } catch (error: unknown) {
         if (error instanceof Error) {
