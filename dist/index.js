@@ -29426,9 +29426,9 @@ function run() {
             });
             copyNodeModulesToWorktree(tempDir);
             try {
-                const nodeModulesExists = fs_1.default.existsSync(`${tempDir}/node_modules`);
-                const installCommand = nodeModulesExists ? "" : "npm ci --prefer-offline --no-audit &&";
-                (0, child_process_1.execSync)(`cd ${tempDir} && ${installCommand} ${commandAfterSwitch} && ${commandToRun}`, {
+                // const nodeModulesExists = fs.existsSync(`${tempDir}/node_modules`);
+                // const installCommand = nodeModulesExists ? "" : "npm ci --prefer-offline --no-audit &&";
+                (0, child_process_1.execSync)(`cd ${tempDir} && ${commandAfterSwitch} && ${commandToRun}`, {
                     stdio: "inherit",
                 });
                 const codeCoverageOld = JSON.parse(fs_1.default.readFileSync(`${tempDir}/coverage-summary.json`).toString());
@@ -29462,7 +29462,7 @@ function run() {
                 }
             }
             finally {
-                (0, child_process_1.execSync)(`git worktree remove ${tempDir}`, { stdio: "inherit" });
+                (0, child_process_1.execSync)(`git worktree remove --force ${tempDir}`, { stdio: "inherit" });
                 (0, child_process_1.execSync)(`rm -rf ${tempDir}`, { stdio: "inherit" });
             }
         }

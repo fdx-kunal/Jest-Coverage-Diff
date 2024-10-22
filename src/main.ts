@@ -50,10 +50,10 @@ async function run(): Promise<void> {
         copyNodeModulesToWorktree(tempDir);
 
         try {
-            const nodeModulesExists = fs.existsSync(`${tempDir}/node_modules`);
-            const installCommand = nodeModulesExists ? "" : "npm ci --prefer-offline --no-audit &&";
+            // const nodeModulesExists = fs.existsSync(`${tempDir}/node_modules`);
+            // const installCommand = nodeModulesExists ? "" : "npm ci --prefer-offline --no-audit &&";
 
-            execSync(`cd ${tempDir} && ${installCommand} ${commandAfterSwitch} && ${commandToRun}`, {
+            execSync(`cd ${tempDir} && ${commandAfterSwitch} && ${commandToRun}`, {
                 stdio: "inherit",
             });
 
@@ -91,7 +91,7 @@ async function run(): Promise<void> {
                 throw new Error(messageToPost);
             }
         } finally {
-            execSync(`git worktree remove ${tempDir}`, { stdio: "inherit" });
+            execSync(`git worktree remove --force ${tempDir}`, { stdio: "inherit" });
             execSync(`rm -rf ${tempDir}`, { stdio: "inherit" });
         }
     } catch (error: unknown) {
