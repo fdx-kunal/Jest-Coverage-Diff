@@ -8,6 +8,12 @@ import { DiffChecker } from "./DiffChecker";
 
 type GitHubClient = ReturnType<typeof github.getOctokit>;
 
+function copyNodeModulesToWorktree(tempDir: string): void {
+    if (fs.existsSync("node_modules")) {
+        execSync(`cp -R node_modules ${tempDir}/`, { stdio: "inherit" });
+    }
+}
+
 async function run(): Promise<void> {
     try {
         const repoName = github.context.repo.repo;
@@ -37,10 +43,19 @@ async function run(): Promise<void> {
         const codeCoverageNew = JSON.parse(fs.readFileSync("coverage-summary.json").toString()) as CoverageReport;
 
         const tempDir = "base_branch_worktree";
-        execSync(`git worktree add ${tempDir} ${branchNameBase}`, { stdio: "inherit" });
+        execSync(`git worktree add ${tempDir} ${branchNameBase}`, {
+            stdio: "inherit",
+        });
+
+        copyNodeModulesToWorktree(tempDir);
 
         try {
-            execSync(`cd ${tempDir} && ${commandAfterSwitch} && ${commandToRun}`, { stdio: "inherit" });
+            const nodeModulesExists = fs.existsSync(`${tempDir}/node_modules`);
+            const installCommand = nodeModulesExists ? "" : "npm ci --prefer-offline --no-audit &&";
+
+            execSync(`cd ${tempDir} && ${installCommand} ${commandAfterSwitch} && ${commandToRun}`, {
+                stdio: "inherit",
+            });
 
             const codeCoverageOld = JSON.parse(
                 fs.readFileSync(`${tempDir}/coverage-summary.json`).toString(),

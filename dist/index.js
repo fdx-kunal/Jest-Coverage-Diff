@@ -29388,6 +29388,11 @@ const github = __importStar(__nccwpck_require__(5438));
 const child_process_1 = __nccwpck_require__(2081);
 const fs_1 = __importDefault(__nccwpck_require__(7147));
 const DiffChecker_1 = __nccwpck_require__(6458);
+function copyNodeModulesToWorktree(tempDir) {
+    if (fs_1.default.existsSync("node_modules")) {
+        (0, child_process_1.execSync)(`cp -R node_modules ${tempDir}/`, { stdio: "inherit" });
+    }
+}
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b;
@@ -29416,9 +29421,16 @@ function run() {
             (0, child_process_1.execSync)(commandToRun, { stdio: "inherit" });
             const codeCoverageNew = JSON.parse(fs_1.default.readFileSync("coverage-summary.json").toString());
             const tempDir = "base_branch_worktree";
-            (0, child_process_1.execSync)(`git worktree add ${tempDir} ${branchNameBase}`, { stdio: "inherit" });
+            (0, child_process_1.execSync)(`git worktree add ${tempDir} ${branchNameBase}`, {
+                stdio: "inherit",
+            });
+            copyNodeModulesToWorktree(tempDir);
             try {
-                (0, child_process_1.execSync)(`cd ${tempDir} && ${commandAfterSwitch} && ${commandToRun}`, { stdio: "inherit" });
+                const nodeModulesExists = fs_1.default.existsSync(`${tempDir}/node_modules`);
+                const installCommand = nodeModulesExists ? "" : "npm ci --prefer-offline --no-audit &&";
+                (0, child_process_1.execSync)(`cd ${tempDir} && ${installCommand} ${commandAfterSwitch} && ${commandToRun}`, {
+                    stdio: "inherit",
+                });
                 const codeCoverageOld = JSON.parse(fs_1.default.readFileSync(`${tempDir}/coverage-summary.json`).toString());
                 const currentDirectory = process.cwd();
                 const diffChecker = new DiffChecker_1.DiffChecker(codeCoverageNew, codeCoverageOld);
