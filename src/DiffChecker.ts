@@ -67,9 +67,12 @@ export class DiffChecker {
         const files = Object.keys(this.diffCoverageReport);
         for (const file of files) {
             const diffCoverageData = this.diffCoverageReport[file];
-            const keys: ("lines" | "statements" | "branches" | "functions")[] = <
-                ("lines" | "statements" | "branches" | "functions")[]
-            >Object.keys(diffCoverageData);
+            const keys: ("lines" | "statements" | "branches" | "functions")[] = Object.keys(diffCoverageData) as (
+                | "lines"
+                | "statements"
+                | "branches"
+                | "functions"
+            )[];
             // No new coverage found so that means we deleted a file coverage
             const fileRemovedCoverage = Object.values(diffCoverageData).every(
                 (coverageData) => coverageData.newPct === 0,
@@ -118,9 +121,12 @@ export class DiffChecker {
     }
 
     private compareCoverageValues(diffCoverageData: DiffFileCoverageData): number {
-        const keys: ("lines" | "statements" | "branches" | "functions")[] = <
-            ("lines" | "statements" | "branches" | "functions")[]
-        >Object.keys(diffCoverageData);
+        const keys: ("lines" | "statements" | "branches" | "functions")[] = Object.keys(diffCoverageData) as (
+            | "lines"
+            | "statements"
+            | "branches"
+            | "functions"
+        )[];
         for (const key of keys) {
             if (diffCoverageData[key].oldPct !== diffCoverageData[key].newPct) {
                 return 1;

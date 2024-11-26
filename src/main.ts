@@ -4,55 +4,93 @@ import { execSync } from "child_process";
 import fs from "fs";
 import { CoverageReport } from "./Model/CoverageReport";
 import { DiffChecker } from "./DiffChecker";
-// import { Octokit } from "@octokit/core";
-// import { PaginateInterface } from "@octokit/plugin-paginate-rest";
-// import { RestEndpointMethods } from "@octokit/plugin-rest-endpoint-methods/dist-types/generated/method-types";
-// import { Endpoints } from "@octokit/types";
 
 type GitHubClient = ReturnType<typeof github.getOctokit>;
-// type Comment = Endpoints["GET /repos/{owner}/{repo}/issues/{issue_number}/comments"]["response"]["data"][number];
+
+function execCommand(command: string, errorMessage: string): string {
+    try {
+        const output = execSync(command, {
+            stdio: ["pipe", "pipe", "pipe"],
+            encoding: "utf-8",
+        });
+        core.debug(`Command output: ${output}`);
+        return output;
+    } catch (error) {
+        if (error instanceof Error && "stdout" in error && "stderr" in error) {
+            core.error(`${errorMessage}`);
+            core.error(`stdout: ${error.stdout}`);
+            core.error(`stderr: ${error.stderr}`);
+        }
+        throw new Error(errorMessage);
+    }
+}
 
 async function run(): Promise<void> {
     try {
-        const repoName = github.context.repo.repo;
-        const repoOwner = github.context.repo.owner;
+        // GitHub context
+        const { repo: repoName, owner: repoOwner } = github.context.repo;
         const commitSha = github.context.sha;
-        const githubToken = core.getInput("accessToken");
-        const fullCoverage = JSON.parse(core.getInput("fullCoverageDiff"));
-        const commandToRun = core.getInput("runCommand");
-        const commandAfterSwitch = core.getInput("afterSwitchCommand");
-        const delta = Number(core.getInput("delta"));
-        const rawTotalDelta = core.getInput("total_delta");
-        const githubClient = github.getOctokit(githubToken);
         const prNumber = github.context.issue.number;
         const branchNameBase = github.context.payload.pull_request?.base.ref;
         const branchNameHead = github.context.payload.pull_request?.head.ref;
+
+        // Action inputs
+        const githubToken = core.getInput("accessToken");
+        const commandToRun = core.getInput("runCommand");
+        const commandAfterSwitch = core.getInput("afterSwitchCommand");
+        const cachedBaseBranchCoverageFile = core.getInput("cachedBaseBranchCoverageFile");
+        const fullCoverage = JSON.parse(core.getInput("fullCoverageDiff"));
         const useSameComment = JSON.parse(core.getInput("useSameComment"));
+        const delta = Number(core.getInput("delta"));
+        const totalDelta = core.getInput("total_delta") ? Number(core.getInput("total_delta")) : null;
+
+        // Constants
         const commentIdentifier = `<!-- codeCoverageDiffComment -->`;
         const deltaCommentIdentifier = `<!-- codeCoverageDeltaComment -->`;
-        let totalDelta = null;
-        if (rawTotalDelta !== null) {
-            totalDelta = Number(rawTotalDelta);
-        }
+        const githubClient = github.getOctokit(githubToken);
         let commentId = null;
 
-        execSync(commandToRun);
+        // Generate current branch coverage
+        execCommand(commandToRun, "Failed to generate coverage report for current branch");
+        core.info("Generated coverage report for current branch");
+        const codeCoverageNew = JSON.parse(fs.readFileSync("coverage-summary.json").toString()) as CoverageReport;
 
-        const codeCoverageNew = <CoverageReport>JSON.parse(fs.readFileSync("coverage-summary.json").toString());
+        // Get base branch coverage
+        let codeCoverageOld: CoverageReport;
+        if (cachedBaseBranchCoverageFile && fs.existsSync(cachedBaseBranchCoverageFile)) {
+            core.info(`Using cached base coverage file from: ${cachedBaseBranchCoverageFile}`);
+            codeCoverageOld = JSON.parse(fs.readFileSync(cachedBaseBranchCoverageFile).toString()) as CoverageReport;
+        } else {
+            core.info("No cached base coverage file found. Generating coverage report for base branch...");
+            const currentBranch = execCommand(
+                "git rev-parse --quiet --abbrev-ref HEAD",
+                "Failed to get current branch",
+            );
+            core.info(`Current branch: ${currentBranch.trim()}`);
 
-        execSync("/usr/bin/git fetch --quiet --depth=1");
-        execSync("/usr/bin/git stash --quiet");
-        execSync(`/usr/bin/git checkout --quiet --force ${branchNameBase}`);
+            execCommand("git fetch --quiet --no-progress --depth=1", "Failed to fetch git history");
+            execCommand("git stash --quiet --include-untracked", "Failed to stash changes");
+            execCommand(`git checkout --quiet --force ${branchNameBase}`, "Failed to checkout base branch");
 
-        execSync(commandAfterSwitch);
-        execSync(commandToRun);
+            const switchedBranch = execCommand(
+                "git rev-parse --quiet --abbrev-ref HEAD",
+                "Failed to get switched branch",
+            );
+            core.info(`Switched to branch: ${switchedBranch.trim()}`);
 
-        const codeCoverageOld = <CoverageReport>JSON.parse(fs.readFileSync("coverage-summary.json").toString());
+            execCommand(commandAfterSwitch, "Failed to run post-checkout command");
+            execCommand(commandToRun, "Failed to generate coverage report for base branch");
+            core.info("Generated coverage report for base branch");
+            codeCoverageOld = JSON.parse(fs.readFileSync("coverage-summary.json").toString()) as CoverageReport;
+        }
+
+        // Generate and post coverage report
         const currentDirectory = execSync("pwd").toString().trim();
+        const diffChecker = new DiffChecker(codeCoverageNew, codeCoverageOld);
 
-        const diffChecker: DiffChecker = new DiffChecker(codeCoverageNew, codeCoverageOld);
         let messageToPost = `## Test coverage results :test_tube: \n
-    Code coverage diff between base branch:${branchNameBase} and head branch: ${branchNameHead} \n\n`;
+Code coverage diff between base branch:${branchNameBase} and head branch: ${branchNameHead} \n\n`;
+
         const coverageDetails = diffChecker.getCoverageDetails(!fullCoverage, `${currentDirectory}/`);
         if (coverageDetails.length === 0) {
             messageToPost = "No changes to code coverage between the base branch and the head branch";
@@ -61,29 +99,44 @@ async function run(): Promise<void> {
                 "Status | File | % Stmts | % Branch | % Funcs | % Lines \n -----|-----|---------|----------|---------|------ \n";
             messageToPost += coverageDetails.join("\n");
         }
+
         messageToPost = `${commentIdentifier}\nCommit SHA:${commitSha}\n${messageToPost}`;
         if (useSameComment) {
             commentId = await findComment(githubClient, repoName, repoOwner, prNumber, commentIdentifier);
         }
         await createOrUpdateComment(commentId, githubClient, repoOwner, repoName, messageToPost, prNumber);
 
-        // check if the test coverage is falling below delta/tolerance.
+        // Check coverage thresholds
         if (diffChecker.checkIfTestCoverageFallsBelowDelta(delta, totalDelta)) {
-            if (useSameComment) {
-                commentId = await findComment(githubClient, repoName, repoOwner, prNumber, deltaCommentIdentifier);
+            try {
+                if (useSameComment) {
+                    try {
+                        commentId = await findComment(
+                            githubClient,
+                            repoName,
+                            repoOwner,
+                            prNumber,
+                            deltaCommentIdentifier,
+                        );
+                    } catch (findError) {
+                        core.warning("Failed to find existing comment, will create new one");
+                        commentId = null;
+                    }
+                }
+
+                const deltaMessage = `${deltaCommentIdentifier}\nCommit SHA:${commitSha}\nCurrent PR reduces the test coverage percentage by ${delta} for some tests`;
+                await createOrUpdateComment(commentId, githubClient, repoOwner, repoName, deltaMessage, prNumber);
+                core.setFailed(deltaMessage);
+            } catch (error) {
+                core.error("Failed to post coverage delta comment");
+                core.setFailed(error instanceof Error ? error.message : "Unknown error occurred");
             }
-            messageToPost = `Current PR reduces the test coverage percentage by ${delta} for some tests`;
-            messageToPost = `${deltaCommentIdentifier}\nCommit SHA:${commitSha}\n${messageToPost}`;
-            await createOrUpdateComment(commentId, githubClient, repoOwner, repoName, messageToPost, prNumber);
-            throw Error(messageToPost);
         }
-    } catch (error: unknown) {
+    } catch (error) {
         if (error instanceof Error) {
             core.setFailed(error.message);
-        } else if (typeof error === "string") {
-            core.setFailed(error);
         } else {
-            core.setFailed("An unknown error occurred.");
+            core.setFailed("An unknown error occurred");
         }
     }
 }
@@ -100,16 +153,14 @@ async function createOrUpdateComment(
         await githubClient.rest.issues.updateComment({
             owner: repoOwner,
             repo: repoName,
-            // eslint-disable-next-line camelcase
             comment_id: commentId,
             body: messageToPost,
         });
     } else {
         await githubClient.rest.issues.createComment({
-            repo: repoName,
             owner: repoOwner,
+            repo: repoName,
             body: messageToPost,
-            // eslint-disable-next-line camelcase
             issue_number: prNumber,
         });
     }
@@ -122,18 +173,13 @@ async function findComment(
     prNumber: number,
     identifier: string,
 ): Promise<number> {
-    const comments = await githubClient.rest.issues.listComments({
+    const { data: comments } = await githubClient.rest.issues.listComments({
         owner: repoOwner,
         repo: repoName,
         issue_number: prNumber,
     });
 
-    for (const comment of comments.data) {
-        if (comment.body?.startsWith(identifier)) {
-            return comment.id;
-        }
-    }
-    return 0;
+    return comments.find((comment) => comment.body?.startsWith(identifier))?.id ?? 0;
 }
 
 run();
