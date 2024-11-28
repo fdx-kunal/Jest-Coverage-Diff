@@ -10,7 +10,7 @@ type GitHubClient = ReturnType<typeof github.getOctokit>;
 function execCommand(command: string, errorMessage: string): string {
     try {
         const output = execSync(command, {
-            stdio: ["pipe", "inherit", "inherit"],
+            stdio: ["inherit"],
             encoding: "utf-8",
         });
         core.debug(`Command output: ${output}`);
