@@ -8,6 +8,10 @@
         "project": "./tsconfig.json"
     },
     "rules": {
+        "camelcase": "off",
+        "no-string-literal": "off",
+        "@typescript-eslint/no-string-literal": "off",
+        "no-english-text-in-strings": "off",
         "eslint-comments/no-use": "off",
         "import/no-namespace": "off",
         "no-unused-vars": "off",
@@ -50,7 +54,8 @@
         "@typescript-eslint/require-array-sort-compare": "error",
         "@typescript-eslint/restrict-plus-operands": "error",
         "@typescript-eslint/type-annotation-spacing": "error",
-        "@typescript-eslint/unbound-method": "error"
+        "@typescript-eslint/unbound-method": "error",
+        "i18n-text/no-en": "off"
     },
     "env": {
         "node": true,

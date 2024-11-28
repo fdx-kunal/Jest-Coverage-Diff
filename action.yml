@@ -1,6 +1,6 @@
 name: "Jest Coverage Diff"
 description: "A github action to comment jest coverage diff on a PR"
-author: "Anuraag Puri"
+author: "fdx-kunal"
 inputs:
   accessToken:
     description: "access token required to comment on a pr"
@@ -23,6 +23,9 @@ inputs:
   useSameComment:
     description: "While commenting on the PR update the exisiting comment"
     default: false
+  cachedBaseBranchCoverageFile:
+    description: 'Path to cached base branch coverage file. If provided and exists, skips running coverage on base branch and after switch commands'
+    required: false
 branding:
   color: red
   icon: git-pull-request
