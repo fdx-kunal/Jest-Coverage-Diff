@@ -29390,7 +29390,7 @@ const DiffChecker_1 = __nccwpck_require__(6458);
 function execCommand(command, errorMessage) {
     try {
         const output = (0, child_process_1.execSync)(command, {
-            stdio: ["pipe", "pipe", "pipe"],
+            stdio: ["pipe", "inherit", "inherit"],
             encoding: "utf-8",
         });
         core.debug(`Command output: ${output}`);
