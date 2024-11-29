@@ -29388,12 +29388,13 @@ const child_process_1 = __nccwpck_require__(2081);
 const fs_1 = __importDefault(__nccwpck_require__(7147));
 const DiffChecker_1 = __nccwpck_require__(6458);
 function execCommand(command, errorMessage) {
+    core.info(`Executing command: ${command}`);
     try {
         const output = (0, child_process_1.execSync)(command, {
-            stdio: ["pipe", "inherit", "inherit"],
+            stdio: ["pipe", "pipe", "inherit"],
             encoding: "utf-8",
-        });
-        core.debug(`Command output: ${output}`);
+        }).trim();
+        core.info(`Command output: ${output}`);
         return output;
     }
     catch (error) {

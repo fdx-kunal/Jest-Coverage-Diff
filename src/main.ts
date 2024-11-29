@@ -8,12 +8,14 @@ import { DiffChecker } from "./DiffChecker";
 type GitHubClient = ReturnType<typeof github.getOctokit>;
 
 function execCommand(command: string, errorMessage: string): string {
+    core.info(`Executing command: ${command}`);
     try {
         const output = execSync(command, {
-            stdio: ["pipe", "inherit", "inherit"],
+            stdio: ["pipe", "pipe", "inherit"],
             encoding: "utf-8",
-        });
-        core.debug(`Command output: ${output}`);
+        }).trim();
+
+        core.info(`Command output: ${output}`);
         return output;
     } catch (error) {
         if (error instanceof Error && "stdout" in error && "stderr" in error) {
