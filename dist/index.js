@@ -29441,13 +29441,13 @@ function run() {
             }
             else {
                 core.info("No cached base coverage file found. Generating coverage report for base branch...");
-                const currentBranch = execCommand("git rev-parse --quiet --abbrev-ref HEAD", "Failed to get current branch");
-                core.info(`Current branch: ${currentBranch.trim()}`);
-                execCommand("git fetch --quiet --no-progress --depth=1", "Failed to fetch git history");
-                execCommand("git stash --quiet --include-untracked", "Failed to stash changes");
-                execCommand(`git checkout --quiet --force ${branchNameBase}`, "Failed to checkout base branch");
-                const switchedBranch = execCommand("git rev-parse --quiet --abbrev-ref HEAD", "Failed to get switched branch");
-                core.info(`Switched to branch: ${switchedBranch.trim()}`);
+                const currentBranch = execCommand("/usr/bin/git branch --show-current", "Failed to get current branch");
+                core.info(`Current branch: ${currentBranch}`);
+                execCommand("/usr/bin/git fetch --quiet --depth=1", "Failed to fetch git history");
+                execCommand("/usr/bin/git stash --quiet", "Failed to stash changes");
+                execCommand(`/usr/bin/git checkout --quiet --force ${branchNameBase}`, "Failed to checkout base branch");
+                const switchedBranch = execCommand("/usr/bin/git branch --show-current", "Failed to get switched branch");
+                core.info(`Switched to branch: ${switchedBranch}`);
                 execCommand(commandAfterSwitch, "Failed to run post-checkout command");
                 execCommand(commandToRun, "Failed to generate coverage report for base branch");
                 core.info("Generated coverage report for base branch");
