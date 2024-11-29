@@ -15,8 +15,12 @@ function execCommand(command: string, errorMessage: string): string {
             encoding: "utf-8",
         }).trim();
 
-        core.info(`Command output: ${output}`);
-        return output;
+        if (output) {
+            core.info(`Command output: ${output}`);
+            return output;
+        }
+
+        return "";
     } catch (error) {
         if (error instanceof Error && "stdout" in error && "stderr" in error) {
             core.error(`${errorMessage}`);

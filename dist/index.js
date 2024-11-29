@@ -29394,8 +29394,11 @@ function execCommand(command, errorMessage) {
             stdio: ["pipe", "pipe", "inherit"],
             encoding: "utf-8",
         }).trim();
-        core.info(`Command output: ${output}`);
-        return output;
+        if (output) {
+            core.info(`Command output: ${output}`);
+            return output;
+        }
+        return "";
     }
     catch (error) {
         if (error instanceof Error && "stdout" in error && "stderr" in error) {
