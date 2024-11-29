@@ -29445,7 +29445,7 @@ function run() {
             }
             else {
                 core.info("No cached base coverage file found. Generating coverage report for base branch...");
-                const currentBranch = execCommand("/usr/bin/git branch --show-current", "Failed to get current branch");
+                const currentBranch = execCommand("/usr/bin/git rev-parse --abbrev-ref HEAD", "Failed to get current branch");
                 core.info(`Current branch: ${currentBranch}`);
                 execCommand("/usr/bin/git fetch --quiet --depth=1", "Failed to fetch git history");
                 execCommand("/usr/bin/git stash --quiet", "Failed to stash changes");
